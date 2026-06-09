@@ -19,6 +19,7 @@ public:
     double toDouble() const;
     QString toString() const;
     QString toHtml() const;
+    QString toLatex() const;
 
     Rational operator-() const;
 
@@ -53,6 +54,7 @@ public:
 
     QString toString() const;
     QString toHtml() const;
+    QString toLatex() const;
 
     ComplexRational operator-() const;
 

@@ -16,49 +16,26 @@
 #include <QStackedWidget>
 #include <QVBoxLayout>
 #include <QWebEngineView>
+#include <QUrl>
 
 #include <cmath>
 
 namespace {
-QString replaceSimpleLatex(QString text)
+QString texText(const QString& latex)
 {
-    text = text.toHtmlEscaped();
-
-    const QRegularExpression fractionPattern(R"(\\frac\{([^{}]+)\}\{([^{}]+)\})");
-    QRegularExpressionMatch match = fractionPattern.match(text);
-    while (match.hasMatch()) {
-        const QString fraction =
-            "<span class='frac'><span class='num'>" + match.captured(1)
-            + "</span><span class='den'>" + match.captured(2) + "</span></span>";
-        text.replace(match.capturedStart(), match.capturedLength(), fraction);
-        match = fractionPattern.match(text);
-    }
-
-    const QRegularExpression powerPattern(R"(\^\{([^{}]+)\})");
-    match = powerPattern.match(text);
-    while (match.hasMatch()) {
-        text.replace(match.capturedStart(), match.capturedLength(),
-            "<sup>" + match.captured(1) + "</sup>");
-        match = powerPattern.match(text);
-    }
-
-    text.replace("\\left", "");
-    text.replace("\\right", "");
-    text.replace("\\cos", "<span class='op'>cos</span>");
-    text.replace("\\sin", "<span class='op'>sin</span>");
-    text.replace("y''", "y&Prime;");
-    text.replace("y'", "y&prime;");
-    return text;
+    return latex.toHtmlEscaped();
 }
 
 QString equationBlock(const QString& body)
 {
-    return "<div class='equation'><span class='math'>" + body + "</span></div>";
+    return "<div class='equation tex-display'>" + texText(body) + "</div>";
 }
 
 QString pageHtml(const QString& bodyHtml)
 {
     return "<!doctype html><html><head><meta charset='utf-8'>"
+           "<link rel='stylesheet' href='qrc:///katex/katex.min.css'>"
+           "<script src='qrc:///katex/katex.min.js'></script>"
            "<style>"
            "html,body{margin:0;background:#fff;color:#1f2933;}"
            "body{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:15px;line-height:1.72;padding:22px 26px 34px;}"
@@ -72,19 +49,23 @@ QString pageHtml(const QString& bodyHtml)
            ".summary-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;border-top:1px solid #e6edf3;padding:12px 14px;align-items:start;}"
            ".summary-row:first-child{border-top:0;}"
            ".summary-label{font-weight:650;color:#485766;}"
-           ".math{font-family:'Cambria Math','STIX Two Math','Times New Roman',serif;font-size:1.08em;font-style:italic;line-height:1.65;}"
-           ".op{font-style:normal;padding-right:2px;}"
            ".equation{margin:10px 0 14px;padding:12px 14px;border-left:4px solid #527aa3;background:#f8fafc;overflow-x:auto;font-size:20px;line-height:1.65;}"
-           ".inline-math{font-family:'Cambria Math','Times New Roman',serif;font-style:italic;font-size:1.05em;line-height:1.65;}"
-           ".frac{display:inline-block;vertical-align:middle;text-align:center;line-height:1;font-size:.86em;font-style:normal;margin:0 .1em;}"
-           ".frac .num,.frac .den{display:block;white-space:nowrap;padding:0 .2em;}"
-           ".frac .num{border-bottom:1px solid currentColor;padding-bottom:.08em;}"
-           ".frac .den{padding-top:.08em;}"
+           ".tex-inline{white-space:nowrap;}"
+           ".katex{font-size:1.08em;}"
+           ".equation .katex-display{margin:0;text-align:left;}"
            "table{border-collapse:collapse;width:100%;margin:12px 0 16px;font-size:14px;}"
            "th,td{border:1px solid #d8e1ea;padding:8px 10px;text-align:left;vertical-align:top;}"
            "th{background:#f2f5f8;color:#3a4652;}"
            ".error{color:#9f2f2f;background:#fff6f6;border:1px solid #f0caca;border-radius:6px;padding:10px 12px;}"
-           "</style></head><body>"
+           "</style>"
+           "<script>"
+           "function renderAllMath(){"
+           "const opts={throwOnError:false,strict:false};"
+           "document.querySelectorAll('.tex-inline').forEach(function(el){katex.render(el.textContent,el,Object.assign({},opts,{displayMode:false}));});"
+           "document.querySelectorAll('.tex-display').forEach(function(el){katex.render(el.textContent,el,Object.assign({},opts,{displayMode:true}));});"
+           "}"
+           "document.addEventListener('DOMContentLoaded',renderAllMath);"
+           "</script></head><body>"
         + bodyHtml + "</body></html>";
 }
 }
@@ -298,7 +279,7 @@ void MainWindow::solveFormulaInput()
     QString html;
     html += "<h2>公式输入</h2>";
     html += "<p><b>规范化：</b> <code>" + parsed.normalizedText.toHtmlEscaped() + "</code></p>";
-    html += equationBlock(replaceSimpleLatex(parsed.latex));
+    html += equationBlock(parsed.latex);
     html += "<p><b>LaTeX 源码：</b></p><pre>" + parsed.latex.toHtmlEscaped() + "</pre>";
     html += lastResult_.html;
     fallbackCopyText_.clear();
@@ -413,7 +394,7 @@ QString MainWindow::equationPreview() const
 
 void MainWindow::showOutputHtml(const QString& bodyHtml)
 {
-    output_->setHtml(pageHtml(bodyHtml));
+    output_->setHtml(pageHtml(bodyHtml), QUrl("qrc:///"));
 }
 
 void MainWindow::showIntro()
@@ -424,6 +405,6 @@ void MainWindow::showIntro()
         "<p>当前原型聚焦一阶、二阶常系数线性非齐次方程。</p>"
         "<p>核心流程采用论文中的待定系数矩阵化思路：识别非齐次项形态，判断特征根重数，"
         "构造下三角线性方程组，求出特解并合成通解。</p>"
-        + equationBlock("y&Prime; + y = x<span class='op'>cos</span>(2x)")
+        + equationBlock("y'' + y = x\\cos(2x)")
         + "<p>默认示例如上，可直接点击“求解”。</p>");
 }

@@ -226,6 +226,18 @@ QString Rational::toHtml() const
     return fractionHtml(numerator_, denominator_);
 }
 
+QString Rational::toLatex() const
+{
+    if (denominator_ == 1) {
+        return QString::number(numerator_);
+    }
+    const bool negative = numerator_ < 0;
+    const QString numeratorText = QString::number(static_cast<qulonglong>(unsignedAbs(numerator_)));
+    const QString fraction = "\\frac{" + numeratorText + "}{"
+        + QString::number(denominator_) + "}";
+    return negative ? "-" + fraction : fraction;
+}
+
 Rational Rational::operator-() const
 {
     return Rational(checkedNegate(numerator_), denominator_);
@@ -360,6 +372,24 @@ QString ComplexRational::toHtml() const
     }
     return "(" + real_.toHtml() + (imag_ < Rational(0) ? " - " : " + ")
         + absValue(imag_).toHtml() + "i)";
+}
+
+QString ComplexRational::toLatex() const
+{
+    if (imag_.isZero()) {
+        return real_.toLatex();
+    }
+    if (real_.isZero()) {
+        if (imag_.isOne()) {
+            return "i";
+        }
+        if (imag_.isMinusOne()) {
+            return "-i";
+        }
+        return imag_.toLatex() + "i";
+    }
+    return "\\left(" + real_.toLatex() + (imag_ < Rational(0) ? " - " : " + ")
+        + absValue(imag_).toLatex() + "i\\right)";
 }
 
 ComplexRational ComplexRational::operator-() const

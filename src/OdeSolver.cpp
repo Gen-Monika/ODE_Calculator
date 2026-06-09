@@ -10,31 +10,36 @@ QString joinLines(const QStringList& lines)
     return lines.join("");
 }
 
+QString texEscape(const QString& body)
+{
+    return body.toHtmlEscaped();
+}
+
 QString inlineFormula(const QString& body)
 {
-    return "<span class='inline-math'>" + body + "</span>";
+    return "<span class='tex-inline'>" + texEscape(body) + "</span>";
 }
 
 QString displayFormula(const QString& body)
 {
-    return "<div class='equation'><span class='math'>" + body + "</span></div>";
+    return "<div class='equation tex-display'>" + texEscape(body) + "</div>";
 }
 
 QString summaryRow(const QString& label, const QString& formula)
 {
     return "<div class='summary-row'><div class='summary-label'>" + label
-        + "</div><div><span class='math'>" + formula + "</span></div></div>";
+        + "</div><div>" + inlineFormula(formula) + "</div></div>";
 }
 
 QString rootExpression(const Rational& numerator, const Rational& discriminant, bool plus)
 {
     Rational sqrtValue;
     if (isPerfectSquare(discriminant, sqrtValue)) {
-        return (plus ? numerator + sqrtValue : numerator - sqrtValue).toHtml();
+        return (plus ? numerator + sqrtValue : numerator - sqrtValue).toLatex();
     }
 
     QString sign = plus ? " + " : " - ";
-    return "(" + numerator.toHtml() + sign + "&radic;(" + discriminant.toHtml() + "))";
+    return numerator.toLatex() + sign + "\\sqrt{" + discriminant.toLatex() + "}";
 }
 
 QString coefficientTimesX(const Rational& coefficient)
@@ -46,9 +51,9 @@ QString coefficientTimesX(const Rational& coefficient)
         return "-x";
     }
     if (coefficient.denominator() == 1) {
-        return coefficient.toHtml() + "x";
+        return coefficient.toLatex() + "x";
     }
-    return "(" + coefficient.toHtml() + ")x";
+    return coefficient.toLatex() + "x";
 }
 
 QString joinSignedTerms(const QStringList& terms)
@@ -106,8 +111,8 @@ SolverResult OdeSolver::solvePolynomialExp(const SolverInput& input) const
     QStringList lines;
     lines << "<h2>求解结果</h2>";
     lines << "<div class='summary'>"
-        + summaryRow("齐次通解", "y<sub>h</sub> = " + yh)
-        + summaryRow("特解", "y<sub>p</sub> = " + particular.particular)
+        + summaryRow("齐次通解", "y_h = " + yh)
+        + summaryRow("特解", "y_p = " + particular.particular)
         + summaryRow("通解", "y = " + joinGeneralSolution(yh, particular.particular))
         + "</div>";
 
@@ -115,13 +120,13 @@ SolverResult OdeSolver::solvePolynomialExp(const SolverInput& input) const
     lines << "<p>标准方程写作 "
         + inlineFormula("L(D)y=f(x)")
         + "，特征多项式为 "
-        + inlineFormula("F(&lambda;)") + "。</p>";
-    lines << "<p>本项为 " + inlineFormula("P(x)e<sup>rx</sup>")
+        + inlineFormula("F(\\lambda)") + "。</p>";
+    lines << "<p>本项为 " + inlineFormula("P(x)e^{rx}")
         + "，其中 " + inlineFormula("r = " + formatReal(input.expR))
         + "，" + inlineFormula("P(x) = " + formatPolynomialReal(input.polynomialAscending))
         + "。</p>";
     lines << "<p>精确计算 "
-        + inlineFormula("F(r), F&prime;(r), ...")
+        + inlineFormula("F(r), F'(r), \\ldots")
         + " 后，" + inlineFormula("r")
         + " 的特征根重数 "
         + inlineFormula("j = " + QString::number(particular.multiplicity))
@@ -129,9 +134,8 @@ SolverResult OdeSolver::solvePolynomialExp(const SolverInput& input) const
     lines << "<p>按论文结论，设 " + inlineFormula(particular.ansatz) + "。</p>";
     lines << "<p>利用公式：</p>";
     lines << displayFormula(
-        "L(D)(x<sup>q</sup>e<sup>rx</sup>) = "
-        "e<sup>rx</sup>&sum;<sub>i=0</sub><sup>q</sup>"
-        "C(q,i)F<sup>(i)</sup>(r)x<sup>q-i</sup>");
+        "L(D)(x^{q}e^{rx}) = "
+        "e^{rx}\\sum_{i=0}^{q} C(q,i)F^{(i)}(r)x^{q-i}");
     lines << particular.matrixHtml;
     lines << "<p>用有理数高斯消元，解得 Q(x) = "
         + inlineFormula(formatPolynomialComplex(particular.coefficientsAscending)) + "。</p>";
@@ -190,19 +194,19 @@ SolverResult OdeSolver::solveExpTrig(const SolverInput& input) const
     }
     const QString trigPart = trigTerms.isEmpty() ? "0" : joinSignedTerms(trigTerms);
     const QString expFactor = formatExponentialFactor(input.trigA);
-    const QString yp = expFactor.isEmpty() ? trigPart : expFactor + "[" + trigPart + "]";
+    const QString yp = expFactor.isEmpty() ? trigPart : expFactor + "\\left[" + trigPart + "\\right]";
 
     QStringList lines;
     lines << "<h2>求解结果</h2>";
     lines << "<div class='summary'>"
-        + summaryRow("齐次通解", "y<sub>h</sub> = " + yh)
-        + summaryRow("特解", "y<sub>p</sub> = " + yp)
+        + summaryRow("齐次通解", "y_h = " + yh)
+        + summaryRow("特解", "y_p = " + yp)
         + summaryRow("通解", "y = " + joinGeneralSolution(yh, yp))
         + "</div>";
 
     lines << "<h2>推导步骤</h2>";
     lines << "<p>三角型右端项写作 "
-        + inlineFormula("e<sup>ax</sup>(R(x)<span class='op'>cos</span> bx + I(x)<span class='op'>sin</span> bx)")
+        + inlineFormula("e^{ax}(R(x)\\cos bx + I(x)\\sin bx)")
         + "。</p>";
     lines << "<p>令 " + inlineFormula("z = a + bi = " + formatComplex(lambda))
         + "，并构造复多项式 " + inlineFormula("C(x)=R(x)-iI(x)") + "。</p>";
@@ -212,7 +216,7 @@ SolverResult OdeSolver::solveExpTrig(const SolverInput& input) const
         + "，所以 "
         + inlineFormula("C(x) = " + formatPolynomialComplex(forcingAscending)) + "。</p>";
     lines << "<p>先解复指数问题 "
-        + inlineFormula("L(D)Y = C(x)e<sup>zx</sup>")
+        + inlineFormula("L(D)Y = C(x)e^{zx}")
         + "，再取实部回到原三角函数。</p>";
     lines << "<p>" + inlineFormula("z") + " 的特征根重数 "
         + inlineFormula("j = " + QString::number(particular.multiplicity))
@@ -222,11 +226,11 @@ SolverResult OdeSolver::solveExpTrig(const SolverInput& input) const
         + inlineFormula(formatPolynomialComplex(particular.coefficientsAscending)) + "。</p>";
     lines << "<p>若 " + inlineFormula("Q(x)=U(x)+iV(x)")
         + "，则 "
-        + inlineFormula("Re(Q(x)e<sup>ibx</sup>) = U(x)<span class='op'>cos</span> bx - V(x)<span class='op'>sin</span> bx")
+        + inlineFormula("\\operatorname{Re}(Q(x)e^{ibx}) = U(x)\\cos bx - V(x)\\sin bx")
         + "。</p>";
     lines << "<p>因此 " + inlineFormula("U(x) = " + u)
         + "，" + inlineFormula("-V(x) = " + v)
-        + "；再与共振因子 " + inlineFormula("x<sup>j</sup>")
+        + "；再与共振因子 " + inlineFormula("x^j")
         + " 合并后得到上面的特解。</p>";
 
     SolverResult result;
@@ -274,16 +278,16 @@ OdeSolver::ParticularResult OdeSolver::solveComplexPolynomialExp(
             if (matrix[power][col].isZero()) {
                 continue;
             }
-            terms << formatComplex(matrix[power][col]) + " q<sub>"
-                + QString::number(col) + "</sub>";
+            terms << formatComplex(matrix[power][col]) + " q_{"
+                + QString::number(col) + "}";
         }
         if (terms.isEmpty()) {
             terms << "0";
         }
-        rows << "<tr><td><span class='math'>x<sup>" + QString::number(power)
-            + "</sup></span></td><td><span class='math'>"
-            + terms.join(" + ") + " = " + formatComplex(rhs[power])
-            + "</span></td></tr>";
+        rows << "<tr><td>" + inlineFormula("x^{" + QString::number(power) + "}")
+            + "</td><td>"
+            + inlineFormula(terms.join(" + ") + " = " + formatComplex(rhs[power]))
+            + "</td></tr>";
     }
     rows << "</table>";
 
@@ -294,14 +298,14 @@ OdeSolver::ParticularResult OdeSolver::solveComplexPolynomialExp(
     if (multiplicity > 0) {
         ansatz += "x";
         if (multiplicity > 1) {
-            ansatz += "<sup>" + QString::number(multiplicity) + "</sup>";
+            ansatz += "^{" + QString::number(multiplicity) + "}";
         }
     }
     if (!lambda.isZero()) {
         if (lambda.imag().isZero()) {
             ansatz += formatExponentialFactor(lambda.real());
         } else {
-            ansatz += "e<sup>(" + formatComplex(lambda) + ")x</sup>";
+            ansatz += "e^{(" + formatComplex(lambda) + ")x}";
         }
     }
     ansatz += "Q(x)";
@@ -311,7 +315,7 @@ OdeSolver::ParticularResult OdeSolver::solveComplexPolynomialExp(
         if (lambda.imag().isZero()) {
             expFactor = formatExponentialFactor(lambda.real());
         } else {
-            expFactor = "e<sup>(" + formatComplex(lambda) + ")x</sup>";
+            expFactor = "e^{(" + formatComplex(lambda) + ")x}";
         }
     }
     QString particular = mergedPolynomial;
@@ -344,7 +348,7 @@ QString OdeSolver::homogeneousSolution(const SolverInput& input) const
 {
     if (input.order == 1) {
         const QString expFactor = formatExponentialFactor(-input.a0);
-        return expFactor.isEmpty() ? "C<sub>1</sub>" : "C<sub>1</sub>" + expFactor;
+        return expFactor.isEmpty() ? "C_1" : "C_1" + expFactor;
     }
 
     const Rational discriminant = input.a1 * input.a1 - Rational(4) * input.a0;
@@ -355,19 +359,19 @@ QString OdeSolver::homogeneousSolution(const SolverInput& input) const
             const Rational root2 = (-input.a1 - sqrtValue) / Rational(2);
             const QString exp1 = formatExponentialFactor(root1);
             const QString exp2 = formatExponentialFactor(root2);
-            return "C<sub>1</sub>" + exp1 + " + C<sub>2</sub>" + exp2;
+            return "C_1" + exp1 + " + C_2" + exp2;
         }
-        return "C<sub>1</sub>e<sup>(" + rootExpression(-input.a1, discriminant, true)
-            + "/2)x</sup> + C<sub>2</sub>e<sup>("
-            + rootExpression(-input.a1, discriminant, false) + "/2)x</sup>";
+        return "C_1e^{\\frac{" + rootExpression(-input.a1, discriminant, true)
+            + "}{2}x} + C_2e^{\\frac{"
+            + rootExpression(-input.a1, discriminant, false) + "}{2}x}";
     }
 
     if (discriminant == Rational(0)) {
         const Rational root = -input.a1 / Rational(2);
         const QString expFactor = formatExponentialFactor(root);
         return expFactor.isEmpty()
-            ? "(C<sub>1</sub> + C<sub>2</sub>x)"
-            : "(C<sub>1</sub> + C<sub>2</sub>x)" + expFactor;
+            ? "\\left(C_1 + C_2x\\right)"
+            : "\\left(C_1 + C_2x\\right)" + expFactor;
     }
 
     const Rational alpha = -input.a1 / Rational(2);
@@ -375,10 +379,10 @@ QString OdeSolver::homogeneousSolution(const SolverInput& input) const
     Rational beta;
     const QString betaText = isPerfectSquare(betaSquared, beta)
         ? formatTrigArgument(beta / Rational(2))
-        : "(&radic;(" + betaSquared.toHtml() + ")/2)x";
+        : "\\frac{\\sqrt{" + betaSquared.toLatex() + "}}{2}x";
     const QString prefix = formatExponentialFactor(alpha);
-    return prefix + "(C<sub>1</sub>cos(" + betaText
-        + ") + C<sub>2</sub>sin(" + betaText + "))";
+    return prefix + "\\left(C_1\\cos\\left(" + betaText
+        + "\\right) + C_2\\sin\\left(" + betaText + "\\right)\\right)";
 }
 
 ComplexRational OdeSolver::evaluateDerivative(
@@ -476,12 +480,12 @@ Rational OdeSolver::binomial(int n, int k)
 
 QString OdeSolver::formatReal(const Rational& value)
 {
-    return value.toHtml();
+    return value.toLatex();
 }
 
 QString OdeSolver::formatComplex(const ComplexRational& value)
 {
-    return value.toHtml();
+    return value.toLatex();
 }
 
 QString OdeSolver::formatPolynomialReal(const std::vector<Rational>& coeffsAscending)
@@ -507,20 +511,20 @@ QString OdeSolver::formatPolynomialComplex(const std::vector<ComplexRational>& c
         if (coeff.isReal() && power > 0 && absValue(coeff.real()) == Rational(1)) {
             term = "";
         } else if (coeff.isReal() && power > 0) {
-            term = absValue(coeff.real()).toHtml();
+            term = absValue(coeff.real()).toLatex();
         } else if (coeff.isReal()) {
-            term = absValue(coeff.real()).toHtml();
+            term = absValue(coeff.real()).toLatex();
         } else {
-            term = coeff.toHtml();
+            term = coeff.toLatex();
             if (power > 0) {
-                term = "(" + term + ")";
+                term = "\\left(" + term + "\\right)";
             }
         }
 
         if (power == 1) {
             term += "x";
         } else if (power > 1) {
-            term += "x<sup>" + QString::number(power) + "</sup>";
+            term += "x^{" + QString::number(power) + "}";
         }
 
         const bool negativeReal = coeff.isReal() && coeff.real() < Rational(0);
@@ -542,7 +546,7 @@ QString OdeSolver::formatPolynomialFactor(const std::vector<ComplexRational>& co
     if (polynomial == "0") {
         return "0";
     }
-    return nonZeroTermCount(coeffsAscending) > 1 ? "(" + polynomial + ")" : polynomial;
+    return nonZeroTermCount(coeffsAscending) > 1 ? "\\left(" + polynomial + "\\right)" : polynomial;
 }
 
 QString OdeSolver::formatExponentialFactor(const Rational& lambda)
@@ -550,7 +554,7 @@ QString OdeSolver::formatExponentialFactor(const Rational& lambda)
     if (lambda.isZero()) {
         return "";
     }
-    return "e<sup>" + coefficientTimesX(lambda) + "</sup>";
+    return "e^{" + coefficientTimesX(lambda) + "}";
 }
 
 QString OdeSolver::formatTrigArgument(const Rational& frequency)
@@ -574,7 +578,7 @@ QString OdeSolver::formatTrigTerm(
     }
 
     const QString factor = formatPolynomialFactor(complexCoeffs);
-    const QString functionPart = functionName + "(" + formatTrigArgument(frequency) + ")";
+    const QString functionPart = "\\" + functionName + "\\left(" + formatTrigArgument(frequency) + "\\right)";
     if (factor == "1") {
         return functionPart;
     }
@@ -648,7 +652,7 @@ QString OdeSolver::formatPower(const QString& base, int power)
     if (power == 1) {
         return base;
     }
-    return base + "<sup>" + QString::number(power) + "</sup>";
+    return base + "^{" + QString::number(power) + "}";
 }
 
 QString OdeSolver::htmlEscape(const QString& value)

@@ -17,7 +17,7 @@ The project implements a matrix-form undetermined coefficients method, with exac
   - `y''+y=x*cos(2x)`
   - `y''-2y'+y=x*e^x`
   - `y''+y=cos(x)`
-- WebEngine-backed formula display for parsed equations, solutions, and derivation steps
+- WebEngine-backed KaTeX formula display for parsed equations, solutions, and derivation steps
 
 ## Method
 
@@ -42,6 +42,7 @@ The project has been tested locally with:
 - Qt WebEngine
 - Qt WebChannel
 - Qt Positioning
+- Bundled KaTeX 0.17.0 static assets
 - Visual Studio 2022 C++ toolchain
 - CMake
 - C++17
@@ -58,5 +59,5 @@ cmd /s /c "call ""D:\Visual Studio\VC\Auxiliary\Build\vcvars64.bat"" >nul && ""D
 
 - Exact square-root support for characteristic roots
 - A broader expression parser shared by keyboard input and button input
-- Optional KaTeX/MathJax renderer packaging for higher-fidelity LaTeX output
+- Broader LaTeX coverage for intermediate derivation notation
 - GeoGebra-style input buttons
