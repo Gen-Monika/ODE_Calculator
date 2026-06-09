@@ -106,6 +106,16 @@ QString normalizeInput(QString text)
     text.remove(' ');
     return text;
 }
+
+QString fractionHtml(long long numerator, long long denominator)
+{
+    const bool negative = numerator < 0;
+    const QString numeratorText = QString::number(static_cast<qulonglong>(unsignedAbs(numerator)));
+    const QString denominatorText = QString::number(denominator);
+    const QString fraction = "<span class='frac'><span class='num'>" + numeratorText
+        + "</span><span class='den'>" + denominatorText + "</span></span>";
+    return negative ? "-" + fraction : fraction;
+}
 }
 
 Rational::Rational(long long numerator, long long denominator)
@@ -210,7 +220,10 @@ QString Rational::toString() const
 
 QString Rational::toHtml() const
 {
-    return toString().toHtmlEscaped();
+    if (denominator_ == 1) {
+        return QString::number(numerator_);
+    }
+    return fractionHtml(numerator_, denominator_);
 }
 
 Rational Rational::operator-() const
@@ -333,7 +346,20 @@ QString ComplexRational::toString() const
 
 QString ComplexRational::toHtml() const
 {
-    return toString().toHtmlEscaped();
+    if (imag_.isZero()) {
+        return real_.toHtml();
+    }
+    if (real_.isZero()) {
+        if (imag_.isOne()) {
+            return "i";
+        }
+        if (imag_.isMinusOne()) {
+            return "-i";
+        }
+        return imag_.toHtml() + "i";
+    }
+    return "(" + real_.toHtml() + (imag_ < Rational(0) ? " - " : " + ")
+        + absValue(imag_).toHtml() + "i)";
 }
 
 ComplexRational ComplexRational::operator-() const

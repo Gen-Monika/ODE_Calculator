@@ -507,11 +507,11 @@ QString OdeSolver::formatPolynomialComplex(const std::vector<ComplexRational>& c
         if (coeff.isReal() && power > 0 && absValue(coeff.real()) == Rational(1)) {
             term = "";
         } else if (coeff.isReal() && power > 0) {
-            term = absValue(coeff.real()).toString();
+            term = absValue(coeff.real()).toHtml();
         } else if (coeff.isReal()) {
-            term = absValue(coeff.real()).toString();
+            term = absValue(coeff.real()).toHtml();
         } else {
-            term = coeff.toString();
+            term = coeff.toHtml();
             if (power > 0) {
                 term = "(" + term + ")";
             }
