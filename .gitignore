@@ -1,0 +1,40 @@
+# Build outputs
+build*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Qt Creator user files
+*.user
+*.user.*
+*.autosave
+
+# Binaries and runtime deployment files
+*.exe
+*.dll
+*.a
+*.lib
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exp
+
+# Generated Qt deployment folders
+generic/
+iconengines/
+imageformats/
+networkinformation/
+platforms/
+styles/
+tls/
+translations/
+
+# Local temp files
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store
