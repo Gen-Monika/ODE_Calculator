@@ -10,6 +10,7 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QStackedWidget;
+class QTimer;
 class QWebEngineView;
 
 class MainWindow : public QMainWindow {
@@ -26,6 +27,9 @@ private:
     void solveCurrentInput();
     void solveFormulaInput();
     void copyResult();
+    void insertFormulaToken(const QString& token, int cursorOffset = 0);
+    void scheduleFormulaPreviewUpdate();
+    void updateFormulaPreview();
 
     bool readRational(QLineEdit* edit, const QString& name, Rational& value);
     bool readCoefficients(QLineEdit* edit, const QString& name, std::vector<Rational>& ascending);
@@ -33,6 +37,7 @@ private:
     QString equationPreview() const;
     void showIntro();
     void showOutputHtml(const QString& bodyHtml);
+    void showFormulaPreviewHtml(const QString& bodyHtml);
 
     OdeSolver solver_;
     ExpressionParser parser_;
@@ -41,6 +46,9 @@ private:
 
     QLineEdit* formulaEdit_ = nullptr;
     QPushButton* formulaSolveButton_ = nullptr;
+    QWebEngineView* formulaPreview_ = nullptr;
+    QLabel* formulaPreviewStatus_ = nullptr;
+    QTimer* formulaPreviewTimer_ = nullptr;
 
     QComboBox* orderCombo_ = nullptr;
     QLabel* a1Label_ = nullptr;

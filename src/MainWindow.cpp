@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QFormLayout>
 #include <QFrame>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -14,6 +15,7 @@
 #include <QRegularExpression>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWebEngineView>
 #include <QUrl>
@@ -98,11 +100,65 @@ void MainWindow::buildUi()
 
     auto* formulaGroup = new QGroupBox("公式输入", left);
     auto* formulaLayout = new QVBoxLayout(formulaGroup);
+    formulaLayout->setSpacing(8);
+
+    auto* formulaInputLayout = new QHBoxLayout();
     formulaEdit_ = new QLineEdit(formulaGroup);
     formulaEdit_->setPlaceholderText("例如：y''+y=x*cos(2x) 或 y''-2y'+y=x*e^x");
     formulaSolveButton_ = new QPushButton("解析并求解", formulaGroup);
-    formulaLayout->addWidget(formulaEdit_);
-    formulaLayout->addWidget(formulaSolveButton_);
+    formulaInputLayout->addWidget(formulaEdit_, 1);
+    formulaInputLayout->addWidget(formulaSolveButton_);
+    formulaLayout->addLayout(formulaInputLayout);
+
+    formulaPreview_ = new QWebEngineView(formulaGroup);
+    formulaPreview_->setMinimumHeight(124);
+    formulaPreview_->setMaximumHeight(150);
+    formulaLayout->addWidget(formulaPreview_);
+    formulaPreviewTimer_ = new QTimer(this);
+    formulaPreviewTimer_->setSingleShot(true);
+    formulaPreviewTimer_->setInterval(180);
+
+    formulaPreviewStatus_ = new QLabel(formulaGroup);
+    formulaPreviewStatus_->setWordWrap(true);
+    formulaPreviewStatus_->setProperty("previewStatus", true);
+    formulaLayout->addWidget(formulaPreviewStatus_);
+
+    auto* formulaButtonGrid = new QGridLayout();
+    formulaButtonGrid->setHorizontalSpacing(6);
+    formulaButtonGrid->setVerticalSpacing(6);
+
+    struct FormulaButton {
+        const char* label;
+        const char* token;
+        int cursorOffset;
+    };
+
+    const FormulaButton buttons[] = {
+        {"y", "y", 0}, {"y'", "y'", 0}, {"y''", "y''", 0}, {"x", "x", 0},
+        {"x^2", "x^2", 0}, {"x^3", "x^3", 0},
+        {"e^x", "e^(x)", 0}, {"sin", "sin(x)", 0}, {"cos", "cos(x)", 0},
+        {"(", "(", 0}, {")", ")", 0}, {"=", "=", 0},
+        {"+", "+", 0}, {"-", "-", 0}, {"*", "*", 0}, {"/", "/", 0},
+        {"1/2", "1/2", 0}, {"清空", "", 0},
+    };
+
+    const int buttonCount = static_cast<int>(sizeof(buttons) / sizeof(buttons[0]));
+    for (int i = 0; i < buttonCount; ++i) {
+        auto* button = new QPushButton(QString::fromUtf8(buttons[i].label), formulaGroup);
+        button->setProperty("formulaKey", true);
+        button->setMinimumHeight(30);
+        const QString token = QString::fromUtf8(buttons[i].token);
+        const int cursorOffset = buttons[i].cursorOffset;
+        if (QString::fromUtf8(buttons[i].label) == "清空") {
+            connect(button, &QPushButton::clicked, formulaEdit_, &QLineEdit::clear);
+        } else {
+            connect(button, &QPushButton::clicked, this, [this, token, cursorOffset]() {
+                insertFormulaToken(token, cursorOffset);
+            });
+        }
+        formulaButtonGrid->addWidget(button, i / 6, i % 6);
+    }
+    formulaLayout->addLayout(formulaButtonGrid);
     leftLayout->addWidget(formulaGroup);
 
     auto* equationGroup = new QGroupBox("方程", left);
@@ -189,9 +245,11 @@ void MainWindow::buildUi()
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
         "QLineEdit, QComboBox { padding: 6px; border: 1px solid #c4ccd6; border-radius: 4px; }"
         "QPushButton { padding: 8px 12px; border: 1px solid #9ba8b7; border-radius: 4px; background: #f7f9fb; }"
+        "QPushButton[formulaKey='true'] { padding: 5px 8px; min-width: 42px; background: #fbfcfd; }"
         "QPushButton:hover { background: #eef3f8; }"
         "QPushButton:pressed { background: #e1e8f0; }"
         "QWebEngineView { border: 1px solid #cfd6df; border-radius: 6px; background: white; }"
+        "QLabel[previewStatus='true'] { color: #667586; font-size: 9pt; min-height: 18px; }"
         "QLabel[frameShape='6'] { background: #fafafa; padding: 8px; }");
 }
 
@@ -204,6 +262,8 @@ void MainWindow::connectSignals()
     connect(a0Edit_, &QLineEdit::textChanged, this, &MainWindow::updateEquationState);
     connect(formulaSolveButton_, &QPushButton::clicked, this, &MainWindow::solveFormulaInput);
     connect(formulaEdit_, &QLineEdit::returnPressed, this, &MainWindow::solveFormulaInput);
+    connect(formulaEdit_, &QLineEdit::textChanged, this, &MainWindow::scheduleFormulaPreviewUpdate);
+    connect(formulaPreviewTimer_, &QTimer::timeout, this, &MainWindow::updateFormulaPreview);
     connect(solveButton_, &QPushButton::clicked, this, &MainWindow::solveCurrentInput);
     connect(resetButton_, &QPushButton::clicked, this, &MainWindow::resetExample);
     connect(copyButton_, &QPushButton::clicked, this, &MainWindow::copyResult);
@@ -225,6 +285,7 @@ void MainWindow::resetExample()
     polynomialEdit_->setText("1, 0, -2");
     formulaEdit_->setText("y''+y=x*cos(2x)");
     updateEquationState();
+    updateFormulaPreview();
 }
 
 void MainWindow::updateEquationState()
@@ -293,6 +354,41 @@ void MainWindow::copyResult()
         return;
     }
     QApplication::clipboard()->setText(lastResult_.plainSolution);
+}
+
+void MainWindow::insertFormulaToken(const QString& token, int cursorOffset)
+{
+    formulaEdit_->setFocus();
+    const int insertedAt = formulaEdit_->cursorPosition();
+    formulaEdit_->insert(token);
+    if (cursorOffset != 0) {
+        formulaEdit_->setCursorPosition(insertedAt + token.size() + cursorOffset);
+    }
+}
+
+void MainWindow::scheduleFormulaPreviewUpdate()
+{
+    formulaPreviewTimer_->start();
+}
+
+void MainWindow::updateFormulaPreview()
+{
+    const QString text = formulaEdit_->text().trimmed();
+    if (text.isEmpty()) {
+        formulaPreviewStatus_->clear();
+        showFormulaPreviewHtml(equationBlock("\\phantom{y''+y=x\\cos(2x)}"));
+        return;
+    }
+
+    const EquationParseResult parsed = parser_.parseEquation(text);
+    if (!parsed.ok) {
+        formulaPreviewStatus_->setText(parsed.error);
+        showFormulaPreviewHtml("<p class='error'>" + parsed.error.toHtmlEscaped() + "</p>");
+        return;
+    }
+
+    formulaPreviewStatus_->setText(parsed.normalizedText);
+    showFormulaPreviewHtml(equationBlock(parsed.latex));
 }
 
 bool MainWindow::readRational(QLineEdit* edit, const QString& name, Rational& value)
@@ -395,6 +491,11 @@ QString MainWindow::equationPreview() const
 void MainWindow::showOutputHtml(const QString& bodyHtml)
 {
     output_->setHtml(pageHtml(bodyHtml), QUrl("qrc:///"));
+}
+
+void MainWindow::showFormulaPreviewHtml(const QString& bodyHtml)
+{
+    formulaPreview_->setHtml(pageHtml(bodyHtml), QUrl("qrc:///"));
 }
 
 void MainWindow::showIntro()
