@@ -8,24 +8,73 @@
 #include <stdexcept>
 
 namespace {
-long long checkedCast(__int128 value)
+[[noreturn]] void throwOverflow()
 {
-    if (value > std::numeric_limits<long long>::max()
-        || value < std::numeric_limits<long long>::min()) {
-        throw std::overflow_error("精确分数运算溢出，请暂时使用较小的整数系数。");
+    throw std::overflow_error("精确分数运算溢出，请暂时使用较小的整数系数。");
+}
+
+long long checkedNegate(long long value)
+{
+    if (value == std::numeric_limits<long long>::min()) {
+        throwOverflow();
     }
-    return static_cast<long long>(value);
+    return -value;
+}
+
+long long checkedAdd(long long lhs, long long rhs)
+{
+    if ((rhs > 0 && lhs > std::numeric_limits<long long>::max() - rhs)
+        || (rhs < 0 && lhs < std::numeric_limits<long long>::min() - rhs)) {
+        throwOverflow();
+    }
+    return lhs + rhs;
+}
+
+long long checkedMul(long long lhs, long long rhs)
+{
+    if (lhs == 0 || rhs == 0) {
+        return 0;
+    }
+    if ((lhs == -1 && rhs == std::numeric_limits<long long>::min())
+        || (rhs == -1 && lhs == std::numeric_limits<long long>::min())) {
+        throwOverflow();
+    }
+
+    if (lhs > 0) {
+        if ((rhs > 0 && lhs > std::numeric_limits<long long>::max() / rhs)
+            || (rhs < 0 && rhs < std::numeric_limits<long long>::min() / lhs)) {
+            throwOverflow();
+        }
+    } else {
+        if ((rhs > 0 && lhs < std::numeric_limits<long long>::min() / rhs)
+            || (rhs < 0 && lhs < std::numeric_limits<long long>::max() / rhs)) {
+            throwOverflow();
+        }
+    }
+    return lhs * rhs;
+}
+
+unsigned long long unsignedAbs(long long value)
+{
+    if (value >= 0) {
+        return static_cast<unsigned long long>(value);
+    }
+    return static_cast<unsigned long long>(-(value + 1)) + 1;
 }
 
 long long gcdAbs(long long a, long long b)
 {
-    if (a < 0) {
-        a = -a;
+    unsigned long long x = unsignedAbs(a);
+    unsigned long long y = unsignedAbs(b);
+    while (y != 0) {
+        const unsigned long long remainder = x % y;
+        x = y;
+        y = remainder;
     }
-    if (b < 0) {
-        b = -b;
+    if (x > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+        throwOverflow();
     }
-    return std::gcd(a, b);
+    return static_cast<long long>(x);
 }
 
 long long integerSqrt(long long value)
@@ -125,12 +174,11 @@ bool Rational::parse(const QString& rawText, Rational& out, QString* error)
         }
         long long denominator = 1;
         for (int i = 0; i < decimalPart.size(); ++i) {
-            denominator *= 10;
+            denominator = checkedMul(denominator, 10);
         }
-        long long numerator = checkedCast(
-            static_cast<__int128>(integerValue) * denominator + decimalValue);
+        long long numerator = checkedAdd(checkedMul(integerValue, denominator), decimalValue);
         if (negative) {
-            numerator = -numerator;
+            numerator = checkedNegate(numerator);
         }
         out = Rational(numerator, denominator);
         return true;
@@ -167,7 +215,7 @@ QString Rational::toHtml() const
 
 Rational Rational::operator-() const
 {
-    return Rational(-numerator_, denominator_);
+    return Rational(checkedNegate(numerator_), denominator_);
 }
 
 void Rational::normalize()
@@ -176,8 +224,8 @@ void Rational::normalize()
         throw std::runtime_error("分母不能为 0。");
     }
     if (denominator_ < 0) {
-        numerator_ = -numerator_;
-        denominator_ = -denominator_;
+        numerator_ = checkedNegate(numerator_);
+        denominator_ = checkedNegate(denominator_);
     }
     if (numerator_ == 0) {
         denominator_ = 1;
@@ -191,12 +239,13 @@ void Rational::normalize()
 Rational operator+(const Rational& lhs, const Rational& rhs)
 {
     const long long g = gcdAbs(lhs.denominator_, rhs.denominator_);
-    const __int128 lcmLeft = lhs.denominator_ / g;
-    const __int128 lcmRight = rhs.denominator_ / g;
-    const __int128 numerator = static_cast<__int128>(lhs.numerator_) * lcmRight
-        + static_cast<__int128>(rhs.numerator_) * lcmLeft;
-    const __int128 denominator = static_cast<__int128>(lhs.denominator_) * lcmRight;
-    return Rational(checkedCast(numerator), checkedCast(denominator));
+    const long long lcmLeft = lhs.denominator_ / g;
+    const long long lcmRight = rhs.denominator_ / g;
+    const long long numerator = checkedAdd(
+        checkedMul(lhs.numerator_, lcmRight),
+        checkedMul(rhs.numerator_, lcmLeft));
+    const long long denominator = checkedMul(lhs.denominator_, lcmRight);
+    return Rational(numerator, denominator);
 }
 
 Rational operator-(const Rational& lhs, const Rational& rhs)
@@ -208,9 +257,9 @@ Rational operator*(const Rational& lhs, const Rational& rhs)
 {
     const long long g1 = gcdAbs(lhs.numerator_, rhs.denominator_);
     const long long g2 = gcdAbs(rhs.numerator_, lhs.denominator_);
-    const __int128 numerator = static_cast<__int128>(lhs.numerator_ / g1) * (rhs.numerator_ / g2);
-    const __int128 denominator = static_cast<__int128>(lhs.denominator_ / g2) * (rhs.denominator_ / g1);
-    return Rational(checkedCast(numerator), checkedCast(denominator));
+    const long long numerator = checkedMul(lhs.numerator_ / g1, rhs.numerator_ / g2);
+    const long long denominator = checkedMul(lhs.denominator_ / g2, rhs.denominator_ / g1);
+    return Rational(numerator, denominator);
 }
 
 Rational operator/(const Rational& lhs, const Rational& rhs)
@@ -233,8 +282,9 @@ bool operator!=(const Rational& lhs, const Rational& rhs)
 
 bool operator<(const Rational& lhs, const Rational& rhs)
 {
-    return static_cast<__int128>(lhs.numerator_) * rhs.denominator_
-        < static_cast<__int128>(rhs.numerator_) * lhs.denominator_;
+    const long long g = gcdAbs(lhs.denominator_, rhs.denominator_);
+    return checkedMul(lhs.numerator_, rhs.denominator_ / g)
+        < checkedMul(rhs.numerator_, lhs.denominator_ / g);
 }
 
 bool operator>(const Rational& lhs, const Rational& rhs)

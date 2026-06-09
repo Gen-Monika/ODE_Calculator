@@ -17,7 +17,7 @@ The project implements a matrix-form undetermined coefficients method, with exac
   - `y''+y=x*cos(2x)`
   - `y''-2y'+y=x*e^x`
   - `y''+y=cos(x)`
-- Basic LaTeX string output for parsed equations
+- WebEngine-backed formula display for parsed equations, solutions, and derivation steps
 
 ## Method
 
@@ -34,18 +34,29 @@ The core method follows the matrix-form undetermined coefficients idea:
 
 ## Build
 
-Open `CMakeLists.txt` with Qt Creator and choose a Qt 6 MinGW or MSVC kit.
+Open `CMakeLists.txt` with Qt Creator and choose a Qt 6 MSVC kit.
 
 The project has been tested locally with:
 
-- Qt 6.9.1 MinGW 64-bit
+- Qt 6.9.3 MSVC 2022 64-bit
+- Qt WebEngine
+- Qt WebChannel
+- Qt Positioning
+- Visual Studio 2022 C++ toolchain
 - CMake
-- Ninja
 - C++17
+
+On Windows, Qt WebEngine is not available for MinGW builds. After building a
+Release executable, deploy the runtime files with `windeployqt` from a VS x64
+developer environment, for example:
+
+```powershell
+cmd /s /c "call ""D:\Visual Studio\VC\Auxiliary\Build\vcvars64.bat"" >nul && ""D:\Qt\6.9.3\msvc2022_64\bin\windeployqt.exe"" --release --compiler-runtime ""D:\Qt Projects\ODE_Calculator\build_msvc\Release\ODE_Calculator.exe"""
+```
 
 ## Roadmap
 
 - Exact square-root support for characteristic roots
 - A broader expression parser shared by keyboard input and button input
-- LaTeX rendering for results and derivation steps
+- Optional KaTeX/MathJax renderer packaging for higher-fidelity LaTeX output
 - GeoGebra-style input buttons

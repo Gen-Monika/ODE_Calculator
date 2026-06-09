@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets WebEngineWidgets)
 
 qt_add_executable(ODE_Calculator WIN32
     src/main.cpp
@@ -22,7 +22,7 @@ qt_add_executable(ODE_Calculator WIN32
     src/OdeSolver.cpp
 )
 
-target_link_libraries(ODE_Calculator PRIVATE Qt6::Widgets)
+target_link_libraries(ODE_Calculator PRIVATE Qt6::Widgets Qt6::WebEngineWidgets)
 
 if (MSVC)
     target_compile_options(ODE_Calculator PRIVATE /permissive- /Zc:__cplusplus /utf-8)

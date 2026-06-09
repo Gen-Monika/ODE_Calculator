@@ -14,10 +14,79 @@
 #include <QRegularExpression>
 #include <QSplitter>
 #include <QStackedWidget>
-#include <QTextBrowser>
 #include <QVBoxLayout>
+#include <QWebEngineView>
 
 #include <cmath>
+
+namespace {
+QString replaceSimpleLatex(QString text)
+{
+    text = text.toHtmlEscaped();
+
+    const QRegularExpression fractionPattern(R"(\\frac\{([^{}]+)\}\{([^{}]+)\})");
+    QRegularExpressionMatch match = fractionPattern.match(text);
+    while (match.hasMatch()) {
+        const QString fraction =
+            "<span class='frac'><span class='num'>" + match.captured(1)
+            + "</span><span class='den'>" + match.captured(2) + "</span></span>";
+        text.replace(match.capturedStart(), match.capturedLength(), fraction);
+        match = fractionPattern.match(text);
+    }
+
+    const QRegularExpression powerPattern(R"(\^\{([^{}]+)\})");
+    match = powerPattern.match(text);
+    while (match.hasMatch()) {
+        text.replace(match.capturedStart(), match.capturedLength(),
+            "<sup>" + match.captured(1) + "</sup>");
+        match = powerPattern.match(text);
+    }
+
+    text.replace("\\left", "");
+    text.replace("\\right", "");
+    text.replace("\\cos", "<span class='op'>cos</span>");
+    text.replace("\\sin", "<span class='op'>sin</span>");
+    text.replace("y''", "y&Prime;");
+    text.replace("y'", "y&prime;");
+    return text;
+}
+
+QString equationBlock(const QString& body)
+{
+    return "<div class='equation'><span class='math'>" + body + "</span></div>";
+}
+
+QString pageHtml(const QString& bodyHtml)
+{
+    return "<!doctype html><html><head><meta charset='utf-8'>"
+           "<style>"
+           "html,body{margin:0;background:#fff;color:#1f2933;}"
+           "body{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:15px;line-height:1.72;padding:22px 26px 34px;}"
+           "h2{font-size:21px;margin:0 0 12px;color:#17212b;font-weight:650;}"
+           "h2:not(:first-child){margin-top:26px;}"
+           "p{margin:8px 0;}"
+           "code,pre{font-family:Consolas,'Cascadia Mono',monospace;}"
+           "code{background:#f4f7fa;border:1px solid #dbe3ec;border-radius:4px;padding:2px 5px;}"
+           "pre{white-space:pre-wrap;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:10px 12px;}"
+           ".summary{border:1px solid #d7e0ea;border-radius:8px;margin:10px 0 18px;overflow:hidden;}"
+           ".summary-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;border-top:1px solid #e6edf3;padding:12px 14px;align-items:center;}"
+           ".summary-row:first-child{border-top:0;}"
+           ".summary-label{font-weight:650;color:#485766;}"
+           ".math{font-family:'Cambria Math','STIX Two Math','Times New Roman',serif;font-size:1.08em;font-style:italic;}"
+           ".op{font-style:normal;padding-right:2px;}"
+           ".equation{margin:10px 0 14px;padding:12px 14px;border-left:4px solid #527aa3;background:#f8fafc;overflow-x:auto;font-size:20px;line-height:1.8;}"
+           ".inline-math{font-family:'Cambria Math','Times New Roman',serif;font-style:italic;font-size:1.05em;}"
+           ".frac{display:inline-flex;vertical-align:-0.45em;flex-direction:column;align-items:center;line-height:1;font-size:.92em;margin:0 .08em;}"
+           ".frac .num{border-bottom:1px solid currentColor;padding:0 .18em .08em;}"
+           ".frac .den{padding:.08em .18em 0;}"
+           "table{border-collapse:collapse;width:100%;margin:12px 0 16px;font-size:14px;}"
+           "th,td{border:1px solid #d8e1ea;padding:8px 10px;text-align:left;vertical-align:top;}"
+           "th{background:#f2f5f8;color:#3a4652;}"
+           ".error{color:#9f2f2f;background:#fff6f6;border:1px solid #f0caca;border-radius:6px;padding:10px 12px;}"
+           "</style></head><body>"
+        + bodyHtml + "</body></html>";
+}
+}
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -121,8 +190,7 @@ void MainWindow::buildUi()
     leftLayout->addLayout(buttonLayout);
     leftLayout->addStretch();
 
-    output_ = new QTextBrowser(splitter);
-    output_->setOpenExternalLinks(false);
+    output_ = new QWebEngineView(splitter);
     output_->setMinimumWidth(620);
 
     splitter->addWidget(left);
@@ -141,7 +209,7 @@ void MainWindow::buildUi()
         "QPushButton { padding: 8px 12px; border: 1px solid #9ba8b7; border-radius: 4px; background: #f7f9fb; }"
         "QPushButton:hover { background: #eef3f8; }"
         "QPushButton:pressed { background: #e1e8f0; }"
-        "QTextBrowser { border: 1px solid #cfd6df; border-radius: 6px; padding: 12px; background: white; }"
+        "QWebEngineView { border: 1px solid #cfd6df; border-radius: 6px; background: white; }"
         "QLabel[frameShape='6'] { background: #fafafa; padding: 8px; }");
 }
 
@@ -196,18 +264,22 @@ void MainWindow::solveCurrentInput()
 
     lastResult_ = solver_.solve(input);
     if (!lastResult_.ok) {
-        output_->setHtml("<h2>输入需要调整</h2><p style='color:#a33;'>"
+        fallbackCopyText_ = lastResult_.error;
+        showOutputHtml("<h2>输入需要调整</h2><p class='error'>"
             + lastResult_.error.toHtmlEscaped() + "</p>");
         return;
     }
-    output_->setHtml(lastResult_.html);
+    fallbackCopyText_.clear();
+    showOutputHtml(lastResult_.html);
 }
 
 void MainWindow::solveFormulaInput()
 {
     const EquationParseResult parsed = parser_.parseEquation(formulaEdit_->text());
     if (!parsed.ok) {
-        output_->setHtml("<h2>公式解析失败</h2><p style='color:#a33;'>"
+        lastResult_ = SolverResult();
+        fallbackCopyText_ = parsed.error;
+        showOutputHtml("<h2>公式解析失败</h2><p class='error'>"
             + parsed.error.toHtmlEscaped() + "</p>"
             + "<p>当前原型支持示例：<code>y''+y=x*cos(2x)</code>、"
             + "<code>y''-2y'+y=x*e^x</code>、<code>y''+y=cos(x)</code>。</p>");
@@ -216,7 +288,8 @@ void MainWindow::solveFormulaInput()
 
     lastResult_ = solver_.solve(parsed.input);
     if (!lastResult_.ok) {
-        output_->setHtml("<h2>求解失败</h2><p style='color:#a33;'>"
+        fallbackCopyText_ = lastResult_.error;
+        showOutputHtml("<h2>求解失败</h2><p class='error'>"
             + lastResult_.error.toHtmlEscaped() + "</p>");
         return;
     }
@@ -224,17 +297,17 @@ void MainWindow::solveFormulaInput()
     QString html;
     html += "<h2>公式输入</h2>";
     html += "<p><b>规范化：</b> <code>" + parsed.normalizedText.toHtmlEscaped() + "</code></p>";
-    html += "<p><b>LaTeX：</b></p>";
-    html += "<pre style='background:#f6f8fa;border:1px solid #d0d7de;padding:8px;'>"
-        + parsed.latex.toHtmlEscaped() + "</pre>";
+    html += equationBlock(replaceSimpleLatex(parsed.latex));
+    html += "<p><b>LaTeX 源码：</b></p><pre>" + parsed.latex.toHtmlEscaped() + "</pre>";
     html += lastResult_.html;
-    output_->setHtml(html);
+    fallbackCopyText_.clear();
+    showOutputHtml(html);
 }
 
 void MainWindow::copyResult()
 {
     if (!lastResult_.ok) {
-        QApplication::clipboard()->setText(output_->toPlainText());
+        QApplication::clipboard()->setText(fallbackCopyText_);
         return;
     }
     QApplication::clipboard()->setText(lastResult_.plainSolution);
@@ -337,12 +410,19 @@ QString MainWindow::equationPreview() const
         + a0Edit_->text().trimmed() + ")y = f(x)";
 }
 
+void MainWindow::showOutputHtml(const QString& bodyHtml)
+{
+    output_->setHtml(pageHtml(bodyHtml));
+}
+
 void MainWindow::showIntro()
 {
-    output_->setHtml(
+    fallbackCopyText_ = "面向教学的 ODE 图形化计算器";
+    showOutputHtml(
         "<h2>面向教学的 ODE 图形化计算器</h2>"
         "<p>当前原型聚焦一阶、二阶常系数线性非齐次方程。</p>"
         "<p>核心流程采用论文中的待定系数矩阵化思路：识别非齐次项形态，判断特征根重数，"
         "构造下三角线性方程组，求出特解并合成通解。</p>"
-        "<p>默认示例为 <b>y'' + y = x cos(2x)</b>，可直接点击“求解”。</p>");
+        + equationBlock("y&Prime; + y = x<span class='op'>cos</span>(2x)")
+        + "<p>默认示例如上，可直接点击“求解”。</p>");
 }

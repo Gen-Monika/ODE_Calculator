@@ -10,7 +10,7 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QStackedWidget;
-class QTextBrowser;
+class QWebEngineView;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -32,10 +32,12 @@ private:
     SolverInput makeInput(bool& ok);
     QString equationPreview() const;
     void showIntro();
+    void showOutputHtml(const QString& bodyHtml);
 
     OdeSolver solver_;
     ExpressionParser parser_;
     SolverResult lastResult_;
+    QString fallbackCopyText_;
 
     QLineEdit* formulaEdit_ = nullptr;
     QPushButton* formulaSolveButton_ = nullptr;
@@ -60,5 +62,5 @@ private:
     QPushButton* solveButton_ = nullptr;
     QPushButton* resetButton_ = nullptr;
     QPushButton* copyButton_ = nullptr;
-    QTextBrowser* output_ = nullptr;
+    QWebEngineView* output_ = nullptr;
 };

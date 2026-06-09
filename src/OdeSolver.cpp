@@ -7,7 +7,23 @@
 namespace {
 QString joinLines(const QStringList& lines)
 {
-    return lines.join("<br>");
+    return lines.join("");
+}
+
+QString inlineFormula(const QString& body)
+{
+    return "<span class='inline-math'>" + body + "</span>";
+}
+
+QString displayFormula(const QString& body)
+{
+    return "<div class='equation'><span class='math'>" + body + "</span></div>";
+}
+
+QString summaryRow(const QString& label, const QString& formula)
+{
+    return "<div class='summary-row'><div class='summary-label'>" + label
+        + "</div><div><span class='math'>" + formula + "</span></div></div>";
 }
 
 QString rootExpression(const Rational& numerator, const Rational& discriminant, bool plus)
@@ -18,7 +34,7 @@ QString rootExpression(const Rational& numerator, const Rational& discriminant, 
     }
 
     QString sign = plus ? " + " : " - ";
-    return "(" + numerator.toHtml() + sign + "sqrt(" + discriminant.toHtml() + "))";
+    return "(" + numerator.toHtml() + sign + "&radic;(" + discriminant.toHtml() + "))";
 }
 
 QString coefficientTimesX(const Rational& coefficient)
@@ -89,26 +105,36 @@ SolverResult OdeSolver::solvePolynomialExp(const SolverInput& input) const
 
     QStringList lines;
     lines << "<h2>求解结果</h2>";
-    lines << "<p><b>齐次通解：</b> " + yh + "</p>";
-    lines << "<p><b>特解：</b> " + particular.particular + "</p>";
-    lines << "<p><b>通解：</b> y = " + joinGeneralSolution(yh, particular.particular) + "</p>";
+    lines << "<div class='summary'>"
+        + summaryRow("齐次通解", "y<sub>h</sub> = " + yh)
+        + summaryRow("特解", "y<sub>p</sub> = " + particular.particular)
+        + summaryRow("通解", "y = " + joinGeneralSolution(yh, particular.particular))
+        + "</div>";
 
     lines << "<h2>推导步骤</h2>";
-    lines << "<p>标准方程写作 <b>L(D)y=f(x)</b>，特征多项式为 <b>F(lambda)</b>。</p>";
-    lines << "<p>本项为 <b>P(x)e<sup>rx</sup></b>，其中 r = "
-        + formatReal(input.expR) + "，P(x) = "
-        + htmlEscape(formatPolynomialReal(input.polynomialAscending)) + "。</p>";
-    lines << "<p>精确计算 F(r), F'(r), ... 后，r 的特征根重数 j = <b>"
-        + QString::number(particular.multiplicity) + "</b>。</p>";
-    lines << "<p>按论文结论，设 " + particular.ansatz + "。</p>";
+    lines << "<p>标准方程写作 "
+        + inlineFormula("L(D)y=f(x)")
+        + "，特征多项式为 "
+        + inlineFormula("F(&lambda;)") + "。</p>";
+    lines << "<p>本项为 " + inlineFormula("P(x)e<sup>rx</sup>")
+        + "，其中 " + inlineFormula("r = " + formatReal(input.expR))
+        + "，" + inlineFormula("P(x) = " + formatPolynomialReal(input.polynomialAscending))
+        + "。</p>";
+    lines << "<p>精确计算 "
+        + inlineFormula("F(r), F&prime;(r), ...")
+        + " 后，" + inlineFormula("r")
+        + " 的特征根重数 "
+        + inlineFormula("j = " + QString::number(particular.multiplicity))
+        + "。</p>";
+    lines << "<p>按论文结论，设 " + inlineFormula(particular.ansatz) + "。</p>";
     lines << "<p>利用公式：</p>";
-    lines << "<p style='font-family:Consolas,monospace;'>"
-             "L(D)(x<sup>q</sup>e<sup>rx</sup>) = "
-             "e<sup>rx</sup> sum C(q,i)F<sup>(i)</sup>(r)x<sup>q-i</sup>"
-             "</p>";
+    lines << displayFormula(
+        "L(D)(x<sup>q</sup>e<sup>rx</sup>) = "
+        "e<sup>rx</sup>&sum;<sub>i=0</sub><sup>q</sup>"
+        "C(q,i)F<sup>(i)</sup>(r)x<sup>q-i</sup>");
     lines << particular.matrixHtml;
     lines << "<p>用有理数高斯消元，解得 Q(x) = "
-        + htmlEscape(formatPolynomialComplex(particular.coefficientsAscending)) + "。</p>";
+        + inlineFormula(formatPolynomialComplex(particular.coefficientsAscending)) + "。</p>";
 
     SolverResult result;
     result.ok = true;
@@ -168,27 +194,40 @@ SolverResult OdeSolver::solveExpTrig(const SolverInput& input) const
 
     QStringList lines;
     lines << "<h2>求解结果</h2>";
-    lines << "<p><b>齐次通解：</b> " + yh + "</p>";
-    lines << "<p><b>特解：</b> " + yp + "</p>";
-    lines << "<p><b>通解：</b> y = " + joinGeneralSolution(yh, yp) + "</p>";
+    lines << "<div class='summary'>"
+        + summaryRow("齐次通解", "y<sub>h</sub> = " + yh)
+        + summaryRow("特解", "y<sub>p</sub> = " + yp)
+        + summaryRow("通解", "y = " + joinGeneralSolution(yh, yp))
+        + "</div>";
 
     lines << "<h2>推导步骤</h2>";
-    lines << "<p>三角型右端项写作 e<sup>ax</sup>(R(x)cos bx + I(x)sin bx)。</p>";
-    lines << "<p>令 z = a + bi = " + formatComplex(lambda)
-        + "，并构造复多项式 C(x)=R(x)-iI(x)。</p>";
-    lines << "<p>这里 R(x) = " + htmlEscape(formatPolynomialReal(input.cosinePolynomialAscending))
-        + "，I(x) = " + htmlEscape(formatPolynomialReal(input.sinePolynomialAscending))
-        + "，所以 C(x) = "
-        + htmlEscape(formatPolynomialComplex(forcingAscending)) + "。</p>";
-    lines << "<p>先解复指数问题 L(D)Y = C(x)e<sup>zx</sup>，再取实部回到原三角函数。</p>";
-    lines << "<p>z 的特征根重数 j = <b>" + QString::number(particular.multiplicity)
-        + "</b>，设 " + particular.ansatz + "。</p>";
+    lines << "<p>三角型右端项写作 "
+        + inlineFormula("e<sup>ax</sup>(R(x)<span class='op'>cos</span> bx + I(x)<span class='op'>sin</span> bx)")
+        + "。</p>";
+    lines << "<p>令 " + inlineFormula("z = a + bi = " + formatComplex(lambda))
+        + "，并构造复多项式 " + inlineFormula("C(x)=R(x)-iI(x)") + "。</p>";
+    lines << "<p>这里 "
+        + inlineFormula("R(x) = " + formatPolynomialReal(input.cosinePolynomialAscending))
+        + "，" + inlineFormula("I(x) = " + formatPolynomialReal(input.sinePolynomialAscending))
+        + "，所以 "
+        + inlineFormula("C(x) = " + formatPolynomialComplex(forcingAscending)) + "。</p>";
+    lines << "<p>先解复指数问题 "
+        + inlineFormula("L(D)Y = C(x)e<sup>zx</sup>")
+        + "，再取实部回到原三角函数。</p>";
+    lines << "<p>" + inlineFormula("z") + " 的特征根重数 "
+        + inlineFormula("j = " + QString::number(particular.multiplicity))
+        + "，设 " + inlineFormula(particular.ansatz) + "。</p>";
     lines << particular.matrixHtml;
     lines << "<p>用复有理数高斯消元，解得 Q(x) = "
-        + htmlEscape(formatPolynomialComplex(particular.coefficientsAscending)) + "。</p>";
-    lines << "<p>若 Q(x)=U(x)+iV(x)，则 Re(Q(x)e<sup>ibx</sup>) = U(x)cos bx - V(x)sin bx。</p>";
-    lines << "<p>因此 U(x) = " + htmlEscape(u) + "，-V(x) = " + htmlEscape(v)
-        + "；再与共振因子 x<sup>j</sup> 合并后得到上面的特解。</p>";
+        + inlineFormula(formatPolynomialComplex(particular.coefficientsAscending)) + "。</p>";
+    lines << "<p>若 " + inlineFormula("Q(x)=U(x)+iV(x)")
+        + "，则 "
+        + inlineFormula("Re(Q(x)e<sup>ibx</sup>) = U(x)<span class='op'>cos</span> bx - V(x)<span class='op'>sin</span> bx")
+        + "。</p>";
+    lines << "<p>因此 " + inlineFormula("U(x) = " + u)
+        + "，" + inlineFormula("-V(x) = " + v)
+        + "；再与共振因子 " + inlineFormula("x<sup>j</sup>")
+        + " 合并后得到上面的特解。</p>";
 
     SolverResult result;
     result.ok = true;
@@ -227,8 +266,8 @@ OdeSolver::ParticularResult OdeSolver::solveComplexPolynomialExp(
     const auto coefficients = solveLinearSystem(matrix, rhs);
 
     QStringList rows;
-    rows << "<table border='1' cellspacing='0' cellpadding='4'>";
-    rows << "<tr><th>幂次</th><th>方程</th></tr>";
+    rows << "<table>";
+    rows << "<tr><th>幂次</th><th>系数方程</th></tr>";
     for (int power = degree; power >= 0; --power) {
         QStringList terms;
         for (int col = 0; col <= degree; ++col) {
@@ -241,8 +280,10 @@ OdeSolver::ParticularResult OdeSolver::solveComplexPolynomialExp(
         if (terms.isEmpty()) {
             terms << "0";
         }
-        rows << "<tr><td>x<sup>" + QString::number(power) + "</sup></td><td>"
-            + terms.join(" + ") + " = " + formatComplex(rhs[power]) + "</td></tr>";
+        rows << "<tr><td><span class='math'>x<sup>" + QString::number(power)
+            + "</sup></span></td><td><span class='math'>"
+            + terms.join(" + ") + " = " + formatComplex(rhs[power])
+            + "</span></td></tr>";
     }
     rows << "</table>";
 
@@ -316,8 +357,6 @@ QString OdeSolver::homogeneousSolution(const SolverInput& input) const
             const QString exp2 = formatExponentialFactor(root2);
             return "C<sub>1</sub>" + exp1 + " + C<sub>2</sub>" + exp2;
         }
-        const QString base = "(-" + input.a1.toHtml() + " ± sqrt("
-            + discriminant.toHtml() + "))/2";
         return "C<sub>1</sub>e<sup>(" + rootExpression(-input.a1, discriminant, true)
             + "/2)x</sup> + C<sub>2</sub>e<sup>("
             + rootExpression(-input.a1, discriminant, false) + "/2)x</sup>";
@@ -336,7 +375,7 @@ QString OdeSolver::homogeneousSolution(const SolverInput& input) const
     Rational beta;
     const QString betaText = isPerfectSquare(betaSquared, beta)
         ? formatTrigArgument(beta / Rational(2))
-        : "(sqrt(" + betaSquared.toHtml() + ")/2)x";
+        : "(&radic;(" + betaSquared.toHtml() + ")/2)x";
     const QString prefix = formatExponentialFactor(alpha);
     return prefix + "(C<sub>1</sub>cos(" + betaText
         + ") + C<sub>2</sub>sin(" + betaText + "))";
@@ -481,7 +520,7 @@ QString OdeSolver::formatPolynomialComplex(const std::vector<ComplexRational>& c
         if (power == 1) {
             term += "x";
         } else if (power > 1) {
-            term += "x^" + QString::number(power);
+            term += "x<sup>" + QString::number(power) + "</sup>";
         }
 
         const bool negativeReal = coeff.isReal() && coeff.real() < Rational(0);
@@ -503,8 +542,7 @@ QString OdeSolver::formatPolynomialFactor(const std::vector<ComplexRational>& co
     if (polynomial == "0") {
         return "0";
     }
-    const QString escaped = htmlEscape(polynomial);
-    return nonZeroTermCount(coeffsAscending) > 1 ? "(" + escaped + ")" : escaped;
+    return nonZeroTermCount(coeffsAscending) > 1 ? "(" + polynomial + ")" : polynomial;
 }
 
 QString OdeSolver::formatExponentialFactor(const Rational& lambda)
@@ -610,7 +648,7 @@ QString OdeSolver::formatPower(const QString& base, int power)
     if (power == 1) {
         return base;
     }
-    return base + "^" + QString::number(power);
+    return base + "<sup>" + QString::number(power) + "</sup>";
 }
 
 QString OdeSolver::htmlEscape(const QString& value)
