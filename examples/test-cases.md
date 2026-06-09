@@ -2,6 +2,14 @@
 
 Use coefficients from highest degree to constant term.
 
+Formula-input examples:
+
+```text
+y''+y=x*cos(2x)
+y''-2y'+y=x*e^x
+y''+y=cos(x)
+```
+
 ## Polynomial
 
 Equation:

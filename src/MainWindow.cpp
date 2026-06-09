@@ -45,6 +45,15 @@ void MainWindow::buildUi()
     leftLayout->setContentsMargins(0, 0, 10, 0);
     leftLayout->setSpacing(12);
 
+    auto* formulaGroup = new QGroupBox("公式输入", left);
+    auto* formulaLayout = new QVBoxLayout(formulaGroup);
+    formulaEdit_ = new QLineEdit(formulaGroup);
+    formulaEdit_->setPlaceholderText("例如：y''+y=x*cos(2x) 或 y''-2y'+y=x*e^x");
+    formulaSolveButton_ = new QPushButton("解析并求解", formulaGroup);
+    formulaLayout->addWidget(formulaEdit_);
+    formulaLayout->addWidget(formulaSolveButton_);
+    leftLayout->addWidget(formulaGroup);
+
     auto* equationGroup = new QGroupBox("方程", left);
     auto* equationLayout = new QFormLayout(equationGroup);
     orderCombo_ = new QComboBox(equationGroup);
@@ -143,6 +152,8 @@ void MainWindow::connectSignals()
     connect(kindCombo_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::updateEquationState);
     connect(a1Edit_, &QLineEdit::textChanged, this, &MainWindow::updateEquationState);
     connect(a0Edit_, &QLineEdit::textChanged, this, &MainWindow::updateEquationState);
+    connect(formulaSolveButton_, &QPushButton::clicked, this, &MainWindow::solveFormulaInput);
+    connect(formulaEdit_, &QLineEdit::returnPressed, this, &MainWindow::solveFormulaInput);
     connect(solveButton_, &QPushButton::clicked, this, &MainWindow::solveCurrentInput);
     connect(resetButton_, &QPushButton::clicked, this, &MainWindow::resetExample);
     connect(copyButton_, &QPushButton::clicked, this, &MainWindow::copyResult);
@@ -162,6 +173,7 @@ void MainWindow::resetExample()
 
     expREdit_->setText("0");
     polynomialEdit_->setText("1, 0, -2");
+    formulaEdit_->setText("y''+y=x*cos(2x)");
     updateEquationState();
 }
 
@@ -189,6 +201,34 @@ void MainWindow::solveCurrentInput()
         return;
     }
     output_->setHtml(lastResult_.html);
+}
+
+void MainWindow::solveFormulaInput()
+{
+    const EquationParseResult parsed = parser_.parseEquation(formulaEdit_->text());
+    if (!parsed.ok) {
+        output_->setHtml("<h2>公式解析失败</h2><p style='color:#a33;'>"
+            + parsed.error.toHtmlEscaped() + "</p>"
+            + "<p>当前原型支持示例：<code>y''+y=x*cos(2x)</code>、"
+            + "<code>y''-2y'+y=x*e^x</code>、<code>y''+y=cos(x)</code>。</p>");
+        return;
+    }
+
+    lastResult_ = solver_.solve(parsed.input);
+    if (!lastResult_.ok) {
+        output_->setHtml("<h2>求解失败</h2><p style='color:#a33;'>"
+            + lastResult_.error.toHtmlEscaped() + "</p>");
+        return;
+    }
+
+    QString html;
+    html += "<h2>公式输入</h2>";
+    html += "<p><b>规范化：</b> <code>" + parsed.normalizedText.toHtmlEscaped() + "</code></p>";
+    html += "<p><b>LaTeX：</b></p>";
+    html += "<pre style='background:#f6f8fa;border:1px solid #d0d7de;padding:8px;'>"
+        + parsed.latex.toHtmlEscaped() + "</pre>";
+    html += lastResult_.html;
+    output_->setHtml(html);
 }
 
 void MainWindow::copyResult()

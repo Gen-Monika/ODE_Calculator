@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ExpressionParser.h"
 #include "OdeSolver.h"
 
 #include <QMainWindow>
@@ -23,6 +24,7 @@ private:
     void resetExample();
     void updateEquationState();
     void solveCurrentInput();
+    void solveFormulaInput();
     void copyResult();
 
     bool readRational(QLineEdit* edit, const QString& name, Rational& value);
@@ -32,7 +34,11 @@ private:
     void showIntro();
 
     OdeSolver solver_;
+    ExpressionParser parser_;
     SolverResult lastResult_;
+
+    QLineEdit* formulaEdit_ = nullptr;
+    QPushButton* formulaSolveButton_ = nullptr;
 
     QComboBox* orderCombo_ = nullptr;
     QLabel* a1Label_ = nullptr;

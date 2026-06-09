@@ -23,6 +23,8 @@ The current solver focuses on the undetermined-coefficients method in a matrix f
 
 The code intentionally avoids calling a general CAS in the current stage. The goal is to make the paper's method visible and testable as a dedicated teaching algorithm.
 
+The expression parser is currently a mapping layer from a restricted equation syntax to `SolverInput`. It is not a full symbolic algebra system yet.
+
 Planned work:
 
 - Square-root exact form for characteristic roots.

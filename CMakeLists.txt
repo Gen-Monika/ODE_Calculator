@@ -14,6 +14,8 @@ qt_add_executable(ODE_Calculator WIN32
     src/main.cpp
     src/MainWindow.h
     src/MainWindow.cpp
+    src/ExpressionParser.h
+    src/ExpressionParser.cpp
     src/ExactNumber.h
     src/ExactNumber.cpp
     src/OdeSolver.h

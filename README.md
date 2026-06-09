@@ -1,30 +1,51 @@
 # ODE Calculator
 
-教学型常系数线性非齐次常微分方程通解计算器原型。
+A teaching-oriented Qt/C++ calculator for constant-coefficient linear nonhomogeneous ordinary differential equations.
 
-## 当前支持
+The project implements a matrix-form undetermined coefficients method, with exact rational arithmetic for the coefficient-solving step.
 
-- 一阶标准型：`y' + a0 y = f(x)`
-- 二阶标准型：`y'' + a1 y' + a0 y = f(x)`
-- 非齐次项：
+## Current Features
+
+- First-order equation: `y' + a0 y = f(x)`
+- Second-order equation: `y'' + a1 y' + a0 y = f(x)`
+- Right-hand side forms:
   - `P(x)e^(rx)`
   - `e^(ax)(R(x)cos bx + I(x)sin bx)`
-- 系数输入支持整数、小数和分数，例如 `2`、`-0.5`、`3/4`。
-- 待定系数方程组使用有理数/复有理数精确消元，输出优先保留分数形式。
+- Rational input such as `2`, `-0.5`, and `3/4`
+- Exact rational and complex-rational Gaussian elimination
+- Early formula-input mode, for example:
+  - `y''+y=x*cos(2x)`
+  - `y''-2y'+y=x*e^x`
+  - `y''+y=cos(x)`
+- Basic LaTeX string output for parsed equations
 
-## 方法口径
+## Method
 
-核心算法来自论文中的待定系数法矩阵化思路：
+The core method follows the matrix-form undetermined coefficients idea:
 
-1. 构造特征多项式 `F(lambda)`。
-2. 判断 `r` 或 `a+bi` 作为特征根的重数 `j`。
-3. 用
+1. Write the equation as `L(D)y = f(x)`.
+2. Build the characteristic polynomial `F(lambda)`.
+3. Detect the multiplicity `j` of `r` or `a + bi` as a characteristic root.
+4. Use
    `L(D)(x^q e^(rx)) = e^(rx) sum C(q,i) F^(i)(r) x^(q-i)`
-   构造待定系数线性方程组。
-4. 在有理数域或复有理数域中求解待定系数，并合成齐次通解与特解。
+   to construct the coefficient system.
+5. Solve the coefficient system over rational or complex-rational numbers.
+6. Merge the homogeneous solution and the particular solution.
 
-## 构建
+## Build
 
-用 Qt Creator 打开 `CMakeLists.txt`，选择 Qt 6.9.1 MinGW 64-bit 或其他可用 Kit 构建。
+Open `CMakeLists.txt` with Qt Creator and choose a Qt 6 MinGW or MSVC kit.
 
-如果从命令行构建，可使用本机 Qt 安装中的 CMake/Ninja/MinGW。
+The project has been tested locally with:
+
+- Qt 6.9.1 MinGW 64-bit
+- CMake
+- Ninja
+- C++17
+
+## Roadmap
+
+- Exact square-root support for characteristic roots
+- A broader expression parser shared by keyboard input and button input
+- LaTeX rendering for results and derivation steps
+- GeoGebra-style input buttons

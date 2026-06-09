@@ -41,6 +41,17 @@ QString joinSignedTerms(const QStringList& terms)
     text.replace("+ -", "- ");
     return text;
 }
+
+QString joinGeneralSolution(const QString& homogeneous, const QString& particular)
+{
+    if (particular == "0") {
+        return homogeneous;
+    }
+    if (particular.startsWith('-')) {
+        return homogeneous + " - " + particular.mid(1);
+    }
+    return homogeneous + " + " + particular;
+}
 }
 
 SolverResult OdeSolver::solve(const SolverInput& input) const
@@ -80,7 +91,7 @@ SolverResult OdeSolver::solvePolynomialExp(const SolverInput& input) const
     lines << "<h2>求解结果</h2>";
     lines << "<p><b>齐次通解：</b> " + yh + "</p>";
     lines << "<p><b>特解：</b> " + particular.particular + "</p>";
-    lines << "<p><b>通解：</b> y = " + yh + " + " + particular.particular + "</p>";
+    lines << "<p><b>通解：</b> y = " + joinGeneralSolution(yh, particular.particular) + "</p>";
 
     lines << "<h2>推导步骤</h2>";
     lines << "<p>标准方程写作 <b>L(D)y=f(x)</b>，特征多项式为 <b>F(lambda)</b>。</p>";
@@ -101,7 +112,7 @@ SolverResult OdeSolver::solvePolynomialExp(const SolverInput& input) const
 
     SolverResult result;
     result.ok = true;
-    result.plainSolution = "y = " + yh + " + " + particular.particular;
+    result.plainSolution = "y = " + joinGeneralSolution(yh, particular.particular);
     result.html = joinLines(lines);
     return result;
 }
@@ -159,7 +170,7 @@ SolverResult OdeSolver::solveExpTrig(const SolverInput& input) const
     lines << "<h2>求解结果</h2>";
     lines << "<p><b>齐次通解：</b> " + yh + "</p>";
     lines << "<p><b>特解：</b> " + yp + "</p>";
-    lines << "<p><b>通解：</b> y = " + yh + " + " + yp + "</p>";
+    lines << "<p><b>通解：</b> y = " + joinGeneralSolution(yh, yp) + "</p>";
 
     lines << "<h2>推导步骤</h2>";
     lines << "<p>三角型右端项写作 e<sup>ax</sup>(R(x)cos bx + I(x)sin bx)。</p>";
@@ -181,7 +192,7 @@ SolverResult OdeSolver::solveExpTrig(const SolverInput& input) const
 
     SolverResult result;
     result.ok = true;
-    result.plainSolution = "y = " + yh + " + " + yp;
+    result.plainSolution = "y = " + joinGeneralSolution(yh, yp);
     result.html = joinLines(lines);
     return result;
 }
