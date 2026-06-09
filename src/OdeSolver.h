@@ -54,7 +54,8 @@ private:
         int order,
         const std::vector<Rational>& characteristicDescending,
         ComplexRational lambda,
-        const std::vector<ComplexRational>& forcingAscending) const;
+        const std::vector<ComplexRational>& forcingAscending,
+        bool includeRealImagBlock) const;
 
     std::vector<Rational> characteristicDescending(const SolverInput& input) const;
     QString homogeneousSolution(const SolverInput& input) const;

@@ -85,7 +85,8 @@ EquationParseResult ExpressionParser::parseEquation(const QString& rawText) cons
 
     SolverInput input;
     QString error;
-    if (!parseLeftSide(sides[0], input, error)) {
+    Rational leadingCoefficient(1);
+    if (!parseLeftSide(sides[0], input, leadingCoefficient, error)) {
         result.error = error;
         return result;
     }
@@ -93,6 +94,7 @@ EquationParseResult ExpressionParser::parseEquation(const QString& rawText) cons
         result.error = error;
         return result;
     }
+    normalizeRightSide(input, leadingCoefficient);
 
     result.ok = true;
     result.input = input;
@@ -101,7 +103,11 @@ EquationParseResult ExpressionParser::parseEquation(const QString& rawText) cons
     return result;
 }
 
-bool ExpressionParser::parseLeftSide(const QString& text, SolverInput& input, QString& error) const
+bool ExpressionParser::parseLeftSide(
+    const QString& text,
+    SolverInput& input,
+    Rational& leadingCoefficient,
+    QString& error) const
 {
     Rational y2(0);
     Rational y1(0);
@@ -111,36 +117,16 @@ bool ExpressionParser::parseLeftSide(const QString& text, SolverInput& input, QS
         if (part.isEmpty()) {
             continue;
         }
-        const int sign = part[0] == '-' ? -1 : 1;
-        part = part.mid(1);
-        part = dropOptionalMul(part);
 
-        enum class Kind { None, Y0, Y1, Y2 } kind = Kind::None;
-        int yIndex = -1;
-        if ((yIndex = part.indexOf("y''")) >= 0 || (yIndex = part.indexOf("y2")) >= 0) {
-            kind = Kind::Y2;
-        } else if ((yIndex = part.indexOf("y'")) >= 0 || (yIndex = part.indexOf("y1")) >= 0) {
-            kind = Kind::Y1;
-        } else if ((yIndex = part.indexOf('y')) >= 0) {
-            kind = Kind::Y0;
-        } else {
-            error = "左端只支持 y、y'、y'' 及其常数倍。";
-            return false;
-        }
-
-        QString coeffText = part.left(yIndex);
-        if (coeffText.isEmpty()) {
-            coeffText = "1";
-        }
         Rational coeff;
-        if (!parseRationalToken(coeffText, coeff, error)) {
-            error = "无法解析左端系数 \"" + coeffText + "\"：" + error;
+        int derivativeOrder = 0;
+        if (!parseLeftTerm(part, coeff, derivativeOrder, error)) {
             return false;
         }
-        coeff = sign == 1 ? coeff : -coeff;
-        if (kind == Kind::Y2) {
+
+        if (derivativeOrder == 2) {
             y2 = y2 + coeff;
-        } else if (kind == Kind::Y1) {
+        } else if (derivativeOrder == 1) {
             y1 = y1 + coeff;
         } else {
             y0 = y0 + coeff;
@@ -149,17 +135,15 @@ bool ExpressionParser::parseLeftSide(const QString& text, SolverInput& input, QS
 
     if (!y2.isZero()) {
         input.order = 2;
-        if (y2 != Rational(1)) {
-            y1 = y1 / y2;
-            y0 = y0 / y2;
-        }
-        input.a1 = y1;
-        input.a0 = y0;
+        leadingCoefficient = y2;
+        input.a1 = y1 / y2;
+        input.a0 = y0 / y2;
         return true;
     }
 
     if (!y1.isZero()) {
         input.order = 1;
+        leadingCoefficient = y1;
         input.a1 = Rational(0);
         input.a0 = y0 / y1;
         return true;
@@ -167,6 +151,106 @@ bool ExpressionParser::parseLeftSide(const QString& text, SolverInput& input, QS
 
     error = "左端至少需要包含 y' 或 y''。";
     return false;
+}
+
+bool ExpressionParser::parseLeftTerm(
+    const QString& rawText,
+    Rational& coefficient,
+    int& derivativeOrder,
+    QString& error) const
+{
+    QString text = rawText;
+    int sign = 1;
+    if (text.startsWith('+')) {
+        text = text.mid(1);
+    } else if (text.startsWith('-')) {
+        text = text.mid(1);
+        sign = -1;
+    }
+
+    text = stripOuterParens(text);
+    if (text.isEmpty()) {
+        error = "左端存在空项。";
+        return false;
+    }
+
+    struct DerivativeToken {
+        const char* token;
+        int order;
+    };
+    const DerivativeToken tokens[] = {
+        {"y''", 2},
+        {"y2", 2},
+        {"y'", 1},
+        {"y1", 1},
+        {"y0", 0},
+        {"y", 0},
+    };
+
+    bool matched = false;
+    QString coeffText;
+    for (const DerivativeToken& candidate : tokens) {
+        const QString token = QString::fromLatin1(candidate.token);
+        if (text.endsWith(token)) {
+            derivativeOrder = candidate.order;
+            coeffText = text.left(text.size() - token.size());
+            matched = true;
+            break;
+        }
+    }
+
+    if (!matched) {
+        if (text.contains('y')) {
+            error = "左端项 \"" + rawText + "\" 无效：只支持 y、y'、y'' 及其常数倍。";
+        } else {
+            error = "左端只支持 y、y'、y'' 及其常数倍。";
+        }
+        return false;
+    }
+
+    const bool hasSeparator = coeffText.endsWith('*');
+    if (hasSeparator) {
+        coeffText.chop(1);
+    }
+    if (coeffText.contains('*')) {
+        error = "左端项 \"" + rawText + "\" 的系数只能写在 y、y' 或 y'' 前面。";
+        return false;
+    }
+    if (coeffText.isEmpty()) {
+        if (hasSeparator) {
+            error = "左端项 \"" + rawText + "\" 的乘号前缺少系数。";
+            return false;
+        }
+        coeffText = "1";
+    }
+
+    Rational parsedCoefficient;
+    if (!parseRationalToken(coeffText, parsedCoefficient, error)) {
+        error = "无法解析左端系数 \"" + coeffText + "\"：" + error;
+        return false;
+    }
+    coefficient = sign == 1 ? parsedCoefficient : -parsedCoefficient;
+    return true;
+}
+
+void ExpressionParser::normalizeRightSide(SolverInput& input, const Rational& leadingCoefficient) const
+{
+    if (leadingCoefficient == Rational(1)) {
+        return;
+    }
+
+    const auto scalePolynomial = [leadingCoefficient](std::vector<Rational>& polynomial) {
+        for (Rational& coefficient : polynomial) {
+            coefficient = coefficient / leadingCoefficient;
+        }
+    };
+
+    if (input.kind == NonHomogeneousKind::PolynomialExp) {
+        scalePolynomial(input.polynomialAscending);
+    } else {
+        scalePolynomial(input.cosinePolynomialAscending);
+        scalePolynomial(input.sinePolynomialAscending);
+    }
 }
 
 bool ExpressionParser::parseRightSide(const QString& text, SolverInput& input, QString& error) const

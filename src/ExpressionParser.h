@@ -24,12 +24,22 @@ private:
 
     using Polynomial = std::vector<Rational>;
 
-    bool parseLeftSide(const QString& text, SolverInput& input, QString& error) const;
+    bool parseLeftSide(
+        const QString& text,
+        SolverInput& input,
+        Rational& leadingCoefficient,
+        QString& error) const;
     bool parseRightSide(const QString& text, SolverInput& input, QString& error) const;
 
     bool parsePolynomialExp(const QString& text, SolverInput& input, QString& error) const;
     bool parseExpTrig(const QString& text, SolverInput& input, QString& error) const;
 
+    bool parseLeftTerm(
+        const QString& text,
+        Rational& coefficient,
+        int& derivativeOrder,
+        QString& error) const;
+    void normalizeRightSide(SolverInput& input, const Rational& leadingCoefficient) const;
     bool parsePolynomial(const QString& text, Polynomial& polynomial, QString& error) const;
     bool parseTerm(const QString& text, Term& term, QString& error) const;
     bool parseRationalToken(const QString& text, Rational& value, QString& error) const;
